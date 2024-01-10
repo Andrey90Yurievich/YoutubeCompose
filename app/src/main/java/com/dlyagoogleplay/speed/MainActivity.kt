@@ -1,46 +1,90 @@
 package com.dlyagoogleplay.speed
 
-import android.content.res.Resources
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import com.dlyagoogleplay.speed.ui.theme.SpeedTheme
+
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.room.Room
+
+import com.dlyagoogleplay.speed.roomdatabase.data.NotesDatabase
+import com.dlyagoogleplay.speed.roomdatabase.presentation.AddNoteScreen
+import com.dlyagoogleplay.speed.roomdatabase.presentation.NotesScreen
+import com.dlyagoogleplay.speed.roomdatabase.presentation.NotesViewModel
 
 
 class MainActivity : ComponentActivity() {
+
+    //создание базы данных "notes.db"
+    private val database by lazy {  // создается база данных appDatabase с помощью специального
+        // билдера: Room.databaseBuilder, который принимает контекст, класс, содержащий описание
+        // нашей базы данных, и название самой базы.
+        Room.databaseBuilder(
+            applicationContext,
+            NotesDatabase::class.java,
+            "notes.db"
+        ).build()
+    }
+
+    //использовать эту фабрику при получении экземпляра ViewModel:
+    private val viewModel by viewModels<NotesViewModel>(
+        factoryProducer = { //завод-производитель
+            //класс ViewModel предназначен для хранения и управления UI-related dataс учетом жизненного цикла.
+            object : ViewModelProvider.Factory { //Factoryинтерфейса отвечают за создание экземпляров ViewModels
+                override fun <T: ViewModel> create(modelClass: Class<T>):T {
+                    return NotesViewModel(database.dao) as T
+                    //вернуть вью модель с данными из БД по запросам DAO
+                }
+            }
+        }
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-
-            val videoUri =
-                Uri.parse("android.resource://com.dlyagoogleplay.speed/raw/video")
-
             MaterialTheme {
-                Column() {
-                    YouTubePlayer(
-                        youTubeVideoId = "Aey3_l-nyV0",
-                        lifecycleOwner = LocalLifecycleOwner.current
-                    )
+                    Surface (
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background //белый
+                    ) {
+                        val state by viewModel.state.collectAsState()
+                        //создание навконтроллероа
+                        val navController = rememberNavController()
 
-                    Spacer(modifier = Modifier.height(16.dp))
 
-                    VideoPlayer(videoUri = videoUri)
+
+                        NavHost(
+                            //переход на экран заметок
+                            navController=navController, startDestination = "NoteScreen") {
+                            composable("NoteScreen") {
+                                NotesScreen(
+                                    state = state,
+                                    navController = navController,
+                                    onEvent = viewModel::onEvent
+                                )
+                            }
+                            composable("AddNoteScreen") {
+                                AddNoteScreen(
+                                    state = state,
+                                    navController = navController,
+                                    onEvent = viewModel::onEvent
+                                )
+                            }
+                        }
+
                 }
-
-
             }
         }
     }
